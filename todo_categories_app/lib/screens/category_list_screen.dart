@@ -100,16 +100,12 @@ class CategoryListScreen extends StatelessWidget {
     final cs = Theme.of(context).colorScheme;
 
     return Scaffold(
-      // ✅ Para que el header morado (del main.dart) se vea detrás
       extendBodyBehindAppBar: true,
-
-      // ✅ Opción A: AppBar SIN título (evita el duplicado)
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-
       body: SafeArea(
         child: Center(
           child: Padding(
@@ -129,7 +125,6 @@ class CategoryListScreen extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // ✅ Título SOLO aquí (en la tarjeta)
                     Text(
                       'Lista de Todos',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -138,7 +133,6 @@ class CategoryListScreen extends StatelessWidget {
                           ),
                     ),
                     const SizedBox(height: 12),
-
                     Expanded(
                       child: categories.isEmpty
                           ? const Center(
@@ -147,7 +141,6 @@ class CategoryListScreen extends StatelessWidget {
                               ),
                             )
                           : ListView.separated(
-                              // ✅ espacio para que el FAB no tape items
                               padding: const EdgeInsets.only(bottom: 120),
                               itemCount: categories.length,
                               separatorBuilder: (_, __) =>
@@ -191,7 +184,6 @@ class CategoryListScreen extends StatelessWidget {
           ),
         ),
       ),
-
       floatingActionButton: FloatingActionButton(
         backgroundColor: cs.primary,
         foregroundColor: Colors.white,

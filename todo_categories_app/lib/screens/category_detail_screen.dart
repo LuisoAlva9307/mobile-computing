@@ -12,7 +12,6 @@ class CategoryDetailScreen extends StatefulWidget {
 }
 
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
-  // 0 = Todos, 1 = Pendientes, 2 = Completados
   int _filter = 0;
 
   void _showNewTodoDialog(BuildContext context) {
@@ -137,7 +136,6 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
           child: Column(
             children: [
-              // ✅ Stats
               Row(
                 children: [
                   Expanded(child: _StatChip(label: 'Total', value: total)),
@@ -150,8 +148,6 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                 ],
               ),
               const SizedBox(height: 12),
-
-              // ✅ Filtro (Material 3)
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -171,10 +167,7 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                   },
                 ),
               ),
-
               const SizedBox(height: 12),
-
-              // ✅ Lista dentro de card blanca
               Expanded(
                 child: Container(
                   width: double.infinity,
@@ -220,8 +213,6 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                                 );
                               },
                               onEdit: () {
-                                // Si ya tienes tu diálogo de editar, úsalo.
-                                // Aquí solo dejamos un ejemplo mínimo.
                                 _showEditTodoDialog(
                                   context,
                                   todoId: todo.id,
