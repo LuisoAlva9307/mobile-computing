@@ -2,66 +2,46 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../providers/todo_provider.dart';
-import '../models/todo_category.dart';
-import '../models/todo_item.dart';
-import '../widgets/todo_list_tile.dart';
-
-enum TodoFilter { all, pending, completed }
 
 class CategoryDetailScreen extends StatefulWidget {
   final String categoryId;
-
-  const CategoryDetailScreen({
-    super.key,
-    required this.categoryId,
-  });
+  const CategoryDetailScreen({super.key, required this.categoryId});
 
   @override
   State<CategoryDetailScreen> createState() => _CategoryDetailScreenState();
 }
 
 class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
-  TodoFilter _currentFilter = TodoFilter.all;
+  // 0 = Todos, 1 = Pendientes, 2 = Completados
+  int _filter = 0;
 
-  void _showTodoDialog(
-    BuildContext context,
-    TodoCategory category, {
-    TodoItem? todo,
-  }) {
-    final isEdit = todo != null;
-    final titleController = TextEditingController(text: todo?.title ?? '');
-    DateTime? selectedDate = todo?.dueDate;
+  void _showNewTodoDialog(BuildContext context) {
+    final titleController = TextEditingController();
+    DateTime? selectedDate;
 
     showDialog(
       context: context,
-      builder: (_) => StatefulBuilder(
-        builder: (ctx, setLocalState) {
-          Future<void> selectLocalDate() async {
-            final now = DateTime.now();
-            final picked = await showDatePicker(
-              context: ctx,
-              initialDate: selectedDate ?? now,
-              firstDate: DateTime(now.year - 1),
-              lastDate: DateTime(now.year + 5),
-            );
-
-            if (picked != null) {
-              setLocalState(() {
-                selectedDate = picked;
-              });
-            }
-          }
-
-          return AlertDialog(
-            title: Text(isEdit ? 'Editar Todo' : 'Nuevo Todo'),
-            content: SingleChildScrollView(
-              child: Column(
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Text(
+                'Nuevo Todo',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: titleController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'Descripción',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -71,240 +51,421 @@ class _CategoryDetailScreenState extends State<CategoryDetailScreen> {
                         child: Text(
                           selectedDate == null
                               ? 'Sin fecha objetivo'
-                              : 'Fecha: ${selectedDate!.toLocal().toString().split(' ')[0]}',
+                              : 'Fecha: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: const Color(0xFF5A6273),
+                                  ),
                         ),
                       ),
                       TextButton(
-                        onPressed: selectLocalDate,
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: now,
+                            firstDate: DateTime(now.year - 1),
+                            lastDate: DateTime(now.year + 5),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => selectedDate = picked);
+                          }
+                        },
                         child: const Text('Elegir fecha'),
                       ),
                     ],
                   ),
                 ],
               ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancelar'),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  final text = titleController.text.trim();
-                  if (text.isEmpty) return;
+              actions: [
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) return;
 
-                  final provider = Provider.of<TodoProvider>(
-                    context,
-                    listen: false,
-                  );
-
-                  if (isEdit) {
-                    provider.updateTodo(
-                      category.id,
-                      todo!.id,
-                      title: text,
-                      dueDate: selectedDate,
-                    );
-                  } else {
-                    provider.addTodo(
-                      category.id,
-                      text,
+                    Provider.of<TodoProvider>(context, listen: false).addTodo(
+                      widget.categoryId,
+                      title,
                       selectedDate,
                     );
-                  }
 
-                  Navigator.of(ctx).pop();
-                },
-                child: const Text('Guardar'),
-              ),
-            ],
-          );
-        },
-      ),
+                    Navigator.pop(dialogCtx);
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
     );
-  }
-
-  void _confirmDeleteTodo(
-    BuildContext context,
-    TodoCategory category,
-    TodoItem todo,
-  ) {
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Eliminar Todo'),
-        content: const Text(
-          '¿Estás seguro de eliminar este Todo?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Provider.of<TodoProvider>(
-                context,
-                listen: false,
-              ).deleteTodo(category.id, todo.id);
-
-              Navigator.pop(context);
-            },
-            child: const Text('Eliminar'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<TodoItem> _applyFilter(TodoCategory category) {
-    switch (_currentFilter) {
-      case TodoFilter.pending:
-        return category.todos.where((t) => !t.isDone).toList();
-      case TodoFilter.completed:
-        return category.todos.where((t) => t.isDone).toList();
-      case TodoFilter.all:
-      default:
-        return category.todos;
-    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
     final provider = Provider.of<TodoProvider>(context);
+
     final category = provider.getCategoryById(widget.categoryId);
+    final todos = category?.todos ?? [];
 
-    if (category == null) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Categoría no encontrada'),
-        ),
-        body: const Center(
-          child: Text('La categoría ya no existe.'),
-        ),
-      );
-    }
+    final total = todos.length;
+    final completed = todos.where((t) => t.isDone == true).length;
+    final pending = total - completed;
 
-    final todos = _applyFilter(category);
+    final filteredTodos = switch (_filter) {
+      1 => todos.where((t) => t.isDone == false).toList(),
+      2 => todos.where((t) => t.isDone == true).toList(),
+      _ => todos,
+    };
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F6FA),
       appBar: AppBar(
-        title: Text('Categoría: ${category.name}'),
+        title: Text(
+          'Categoría: ${category?.name ?? 'Sin nombre'}',
+          style: const TextStyle(fontWeight: FontWeight.w800),
+        ),
+        centerTitle: false,
       ),
-      body: Column(
-        children: [
-          // Resumen
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
-              children: [
-                Chip(
-                  label: Text(
-                    'Total: ${category.totalTodos}',
-                  ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
+          child: Column(
+            children: [
+              // ✅ Stats
+              Row(
+                children: [
+                  Expanded(child: _StatChip(label: 'Total', value: total)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _StatChip(label: 'Pendientes', value: pending)),
+                  const SizedBox(width: 10),
+                  Expanded(
+                      child: _StatChip(label: 'Completados', value: completed)),
+                ],
+              ),
+              const SizedBox(height: 12),
+
+              // ✅ Filtro (Material 3)
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: const Color(0xFFE7EAF2)),
                 ),
-                Chip(
-                  label: Text(
-                    'Pendientes: ${category.pendingTodos}',
-                  ),
+                child: SegmentedButton<int>(
+                  segments: const [
+                    ButtonSegment(value: 0, label: Text('Todos')),
+                    ButtonSegment(value: 1, label: Text('Pendientes')),
+                    ButtonSegment(value: 2, label: Text('Completados')),
+                  ],
+                  selected: {_filter},
+                  onSelectionChanged: (s) {
+                    setState(() => _filter = s.first);
+                  },
                 ),
-                Chip(
-                  label: Text(
-                    'Completados: ${category.completedTodos}',
+              ),
+
+              const SizedBox(height: 12),
+
+              // ✅ Lista dentro de card blanca
+              Expanded(
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(18),
+                    border: Border.all(color: const Color(0xFFE7EAF2)),
                   ),
+                  child: filteredTodos.isEmpty
+                      ? Center(
+                          child: Text(
+                            _filter == 0
+                                ? 'No hay Todos en esta categoría.'
+                                : _filter == 1
+                                    ? 'No hay Todos pendientes.'
+                                    : 'No hay Todos completados.',
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodyMedium
+                                ?.copyWith(
+                                  color: const Color(0xFF5A6273),
+                                ),
+                          ),
+                        )
+                      : ListView.separated(
+                          padding: const EdgeInsets.only(bottom: 120),
+                          itemCount: filteredTodos.length,
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(height: 10),
+                          itemBuilder: (ctx, index) {
+                            final todo = filteredTodos[index];
+
+                            return _TodoTile(
+                              title: todo.title,
+                              isDone: todo.isDone,
+                              dueDate: todo.dueDate,
+                              onToggleDone: (val) {
+                                provider.updateTodo(
+                                  widget.categoryId,
+                                  todo.id,
+                                  isDone: val,
+                                );
+                              },
+                              onEdit: () {
+                                // Si ya tienes tu diálogo de editar, úsalo.
+                                // Aquí solo dejamos un ejemplo mínimo.
+                                _showEditTodoDialog(
+                                  context,
+                                  todoId: todo.id,
+                                  initialTitle: todo.title,
+                                  initialDueDate: todo.dueDate,
+                                );
+                              },
+                              onDelete: () {
+                                provider.deleteTodo(widget.categoryId, todo.id);
+                              },
+                            );
+                          },
+                        ),
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: cs.primary,
+        foregroundColor: Colors.white,
+        onPressed: () => _showNewTodoDialog(context),
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
 
-          // Filtros
-          Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 12.0,
-            ),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                ChoiceChip(
-                  label: const Text('Todos'),
-                  selected: _currentFilter == TodoFilter.all,
-                  onSelected: (_) {
-                    setState(() {
-                      _currentFilter = TodoFilter.all;
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Pendientes'),
-                  selected: _currentFilter == TodoFilter.pending,
-                  onSelected: (_) {
-                    setState(() {
-                      _currentFilter = TodoFilter.pending;
-                    });
-                  },
-                ),
-                const SizedBox(width: 8),
-                ChoiceChip(
-                  label: const Text('Completados'),
-                  selected: _currentFilter == TodoFilter.completed,
-                  onSelected: (_) {
-                    setState(() {
-                      _currentFilter = TodoFilter.completed;
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
+  void _showEditTodoDialog(
+    BuildContext context, {
+    required String todoId,
+    required String initialTitle,
+    required DateTime? initialDueDate,
+  }) {
+    final titleController = TextEditingController(text: initialTitle);
+    DateTime? selectedDate = initialDueDate;
 
-          const SizedBox(height: 8),
-
-          // Lista de Todos
-          Expanded(
-            child: todos.isEmpty
-                ? const Center(
-                    child: Text(
-                      'No hay Todos en esta vista.',
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(18),
+              ),
+              title: const Text(
+                'Editar Todo',
+                style: TextStyle(fontWeight: FontWeight.w800),
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: 'Descripción',
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                      ),
                     ),
-                  )
-                : ListView.builder(
-                    itemCount: todos.length,
-                    itemBuilder: (ctx, index) {
-                      final todo = todos[index];
-
-                      return TodoListTile(
-                        todo: todo,
-                        onChanged: (value) {
-                          Provider.of<TodoProvider>(
-                            context,
-                            listen: false,
-                          ).updateTodo(
-                            category.id,
-                            todo.id,
-                            isDone: value ?? false,
-                          );
-                        },
-                        onEdit: () => _showTodoDialog(
-                          context,
-                          category,
-                          todo: todo,
-                        ),
-                        onDelete: () => _confirmDeleteTodo(
-                          context,
-                          category,
-                          todo,
-                        ),
-                      );
-                    },
                   ),
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          selectedDate == null
+                              ? 'Sin fecha objetivo'
+                              : 'Fecha: ${selectedDate!.day}/${selectedDate!.month}/${selectedDate!.year}',
+                          style:
+                              Theme.of(context).textTheme.bodyMedium?.copyWith(
+                                    color: const Color(0xFF5A6273),
+                                  ),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () async {
+                          final now = DateTime.now();
+                          final picked = await showDatePicker(
+                            context: ctx,
+                            initialDate: selectedDate ?? now,
+                            firstDate: DateTime(now.year - 1),
+                            lastDate: DateTime(now.year + 5),
+                          );
+                          if (picked != null) {
+                            setDialogState(() => selectedDate = picked);
+                          }
+                        },
+                        child: const Text('Elegir fecha'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              actions: [
+                OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogCtx),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final title = titleController.text.trim();
+                    if (title.isEmpty) return;
+
+                    Provider.of<TodoProvider>(context, listen: false)
+                        .updateTodo(
+                      widget.categoryId,
+                      todoId,
+                      title: title,
+                      dueDate: selectedDate,
+                    );
+
+                    Navigator.pop(dialogCtx);
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  final String label;
+  final int value;
+
+  const _StatChip({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE7EAF2)),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            label,
+            style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: const Color(0xFF3B4252),
+                ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF2F0FF),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: const Color(0xFFE7EAF2)),
+            ),
+            child: Text(
+              '$value',
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+            ),
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showTodoDialog(context, category),
-        child: const Icon(Icons.add),
+    );
+  }
+}
+
+class _TodoTile extends StatelessWidget {
+  final String title;
+  final bool isDone;
+  final DateTime? dueDate;
+  final ValueChanged<bool> onToggleDone;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _TodoTile({
+    required this.title,
+    required this.isDone,
+    required this.dueDate,
+    required this.onToggleDone,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: const Color(0xFFF8F9FD),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => onToggleDone(!isDone),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: const Color(0xFFE7EAF2)),
+          ),
+          child: Row(
+            children: [
+              Checkbox(
+                value: isDone,
+                onChanged: (v) => onToggleDone(v ?? false),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            decoration:
+                                isDone ? TextDecoration.lineThrough : null,
+                          ),
+                    ),
+                    if (dueDate != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        'Fecha objetivo: ${dueDate!.day}/${dueDate!.month}/${dueDate!.year}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: const Color(0xFF5A6273),
+                            ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              IconButton(
+                onPressed: onEdit,
+                icon: const Icon(Icons.edit_rounded),
+              ),
+              IconButton(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_rounded),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
